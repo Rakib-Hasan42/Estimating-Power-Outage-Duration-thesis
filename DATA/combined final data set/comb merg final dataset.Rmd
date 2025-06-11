@@ -1,0 +1,235 @@
+---
+title: "Merged & Combining"
+author: "Rakib"
+date: "2025-05-13"
+output: html_document
+---
+
+#library
+```{r}
+library(dplyr)
+library(stringr)
+library(readxl)
+```
+
+# hurricane
+```{r}
+#load outage data
+outage_hurr <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/event outage data/hurricane_outage.csv")
+#load previous day lag
+lag1_hurr <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/previous day lag/hurricane_lag1.csv")
+#merging with previous day lag
+merged_hurr <- outage_hurr%>%
+  inner_join(lag1_hurr, by=c('county','date','fips_code'))
+#deleting unwanted col and rename
+merged_hurr <- merged_hurr%>%
+  rename(total_outage = total_outage.x) %>%  # Rename .x column
+  select(-total_outage.y)
+#unique counties & records
+unique(merged_hurr$county)
+length(merged_hurr$date)
+#load previous 3 days average lag
+lag2_hurr <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/previous 3 days lag/hurricane_lag2.csv")
+#merging with previous 3 day average lag
+merged_hurr <- merged_hurr%>%
+  inner_join(lag2_hurr, by=c('county','date','fips_code'))
+#deleting unwanted col and rename
+merged_hurr <- merged_hurr%>%
+  rename(total_outage = total_outage.x) %>%  # Rename .x column
+  select(-total_outage.y)
+#unique counties & records
+unique(merged_hurr$county)
+length(merged_hurr$date)
+#load NDVI 
+ndvi_hurr <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/ndvi/processed/ndvi_hurricane.csv")
+str(merged_hurr)
+str(ndvi_hurr)
+merged_hurr$date <- as.Date(merged_hurr$date)
+ndvi_hurr$date <- as.Date(ndvi_hurr$date)
+#merging with NDVI
+merged_hurr <- merged_hurr%>%
+  inner_join(ndvi_hurr, by=c('county','date'))
+#deleting unwanted col 
+merged_hurr <- merged_hurr%>%
+  select(-Min_NDVI, -Mean_NDVI) 
+#unique counties & records
+unique(merged_hurr$county)
+length(merged_hurr$date)
+#loading precipitation
+preci_hurr <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed/hurricane_preci.csv")
+str(preci_hurr)
+#removing County word to match with outage data
+preci_hurr$county <- str_replace_all(preci_hurr$county, " County", "")
+#rename Date col
+preci_hurr <- preci_hurr%>%
+  rename(date=DATE)
+preci_hurr$date <- as.Date(preci_hurr$date)
+#merging precipitataion data
+merged_hurr <- merged_hurr%>%
+  inner_join(preci_hurr, by=c('county','date'))
+#unique counties & records
+unique(merged_hurr$county)
+length(merged_hurr$date)
+#load weather data
+weather_hurr <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/weather/processed/hurricane_weather.csv")
+str(weather_hurr)
+#rename col day to date
+weather_hurr <- weather_hurr%>%
+  rename(date=day)
+#setting date format
+weather_hurr$date <- as.Date(weather_hurr$date)
+#removing County word to match with outage data
+weather_hurr$county <- str_replace_all(weather_hurr$county, " County", "")
+#merging weather data
+merged_hurr <- merged_hurr%>%
+  inner_join(weather_hurr, by=c('county','date'))
+#unique counties & records
+unique(merged_hurr$county)
+length(merged_hurr$date)
+summary(merged_hurr)
+```
+
+# Tropical storm
+```{r}
+#load outage data
+outage_tro <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/power outage data/outage_storm.csv")
+#load previous day lag
+lag1_tro <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/pevious day lag/storm_lag1.csv")
+#merging with previous day lag
+merged_tro <- outage_tro%>%
+  inner_join(lag1_tro, by=c('county','date','fips_code'))
+#deleting unwanted col and rename
+merged_tro <- merged_tro%>%
+  rename(total_outage = total_outage.x) %>%  # Rename .x column
+  select(-total_outage.y)
+#unique counties & records
+unique(merged_tro$county)
+length(merged_tro$date)
+#load previous 3 days average lag
+lag2_tro <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg/storm_lag2.csv")
+#merging with previous 3 day average lag
+merged_tro <- merged_tro%>%
+  inner_join(lag2_tro, by=c('county','date','fips_code'))
+#deleting unwanted col and rename
+merged_tro <- merged_tro%>%
+  rename(total_outage = total_outage.x) %>%  # Rename .x column
+  select(-total_outage.y)
+#unique counties & records
+unique(merged_tro$county)
+length(merged_tro$date)
+#load NDVI 
+ndvi_tro <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/ndvi/processed/ndvi_storm.csv")
+str(merged_tro)
+str(ndvi_tro)
+merged_tro$date <- as.Date(merged_tro$date)
+ndvi_tro$date <- as.Date(ndvi_tro$date)
+#merging with NDVI
+merged_tro <- merged_tro%>%
+  inner_join(ndvi_tro, by=c('county','date'))
+#deleting unwanted col 
+merged_tro <- merged_tro%>%
+  select(-Min_NDVI, -Mean_NDVI) 
+#unique counties & records
+unique(merged_tro$county)
+length(merged_tro$date)
+#loading precipitation
+preci_tro <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/precipitation/processed/preci_tropical.csv")
+str(preci_tro)
+#removing County word to match with outage data
+preci_tro$county <- str_replace_all(preci_tro$county, " County", "")
+#rename Date col
+preci_tro <- preci_tro%>%
+  rename(date=DATE)
+preci_tro$date <- as.Date(preci_tro$date)
+#merging precipitataion data
+merged_tro <- merged_tro%>%
+  inner_join(preci_tro, by=c('county','date'))
+#unique counties & records
+unique(merged_tro$county)
+length(merged_tro$date)
+#load weather data
+weather_tro <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed/weather_storm.csv")
+str(weather_tro)
+#rename col day to date
+weather_tro <- weather_tro%>%
+  rename(date=day)
+#setting date format
+weather_tro$date <- as.Date(weather_tro$date)
+#removing County word to match with outage data
+weather_tro$county <- str_replace_all(weather_tro$county, " County", "")
+#merging weather data
+merged_tro <- merged_tro%>%
+  inner_join(weather_tro, by=c('county','date'))
+#unique counties & records
+unique(merged_tro$county)
+length(merged_tro$date)
+summary(merged_tro)
+```
+
+# Combine and adding rest
+```{r}
+#combining
+final_data <- bind_rows(merged_hurr, merged_tro)
+#unique counties & records
+unique(final_data$county)
+length(final_data$date)
+#loading population density
+population <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/population/fl_population_2020.csv")
+#rename the county col name
+population <- population%>%
+  rename(county=NAME)
+#remove the word county, florida
+population$county <- str_replace_all(population$county, " County, Florida", "")
+#merging
+final_data <- final_data%>%
+  left_join(population%>% select(county,density_mi2), by='county')
+#unique counties & records
+unique(final_data$county)
+length(final_data$date)
+#load land cover data
+land_cover <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/land cover/land_cover.csv")
+colnames(land_cover)
+#taking required col
+land_cover <- land_cover%>%
+  select(County,agricultural_and_developed_vegetation,developed_and_other_human_use,forest_and_woodland,open_water,shrub_and_herb_vegetation)%>%
+  rename(county=County)
+#merging
+final_data <- final_data%>%
+  left_join(land_cover, by='county')
+#unique counties & records
+unique(final_data$county)
+length(final_data$date)
+#adding event name
+event <- read_excel("C:/Users/rakib/Desktop/Thesis/Strom date data.xlsx", sheet = 3) %>%
+  mutate(
+    start = as.Date(start),
+    end = as.Date(end)
+  )
+
+# For each row in main_data, check which event it belongs to
+final_data <- final_data %>%
+  rowwise() %>%
+  mutate(
+    event_name = {
+      matched <- event %>%
+        filter(date >= start & date <= end)
+      if (nrow(matched) > 0) matched$name[1] else NA
+    }
+  ) %>%
+  ungroup()
+#adding central pressure
+central_pressure <- data.frame(
+  event_name= c('idalia', 'ian', 'nicole', 'sally', 'eta', 'elsa', 'mindy', 'fred'),
+  central_pressure= c(950, 941, 980, 965, 991, 999, 1000, 991)
+)
+final_data <- final_data %>%
+  left_join(central_pressure, by='event_name')
+#unique counties & records
+unique(final_data$county)
+length(final_data$date)
+summary(final_data)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/combined final data set")
+write.csv(final_data, 'final_data.csv', row.names = F)
+```
+

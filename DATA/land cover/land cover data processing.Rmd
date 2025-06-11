@@ -1,0 +1,118 @@
+---
+title: "land cover data"
+author: "Rakib"
+date: "2025-04-10"
+output: html_document
+---
+
+#library
+```{r}
+library(terra)
+library(sf)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(stringr)
+```
+
+#processing land cover raster file
+```{r}
+# Load raster (USGS land cover)
+lc_raster <- rast("C:/Users/rakib/Desktop/Thesis/DATA/land cover/gaplf2011lc_v30_FL/gaplf2011lc_v30_fl.tif")
+# Load counties shapefile
+counties <- st_read("C:/Users/rakib/Desktop/Thesis/DATA/shape file/tl_2024_us_county/tl_2024_us_county.shp")
+counties <- counties[counties$STATEFP==12,] #taking florida
+#resulation
+res(lc_raster)
+# Reproject county shapefile to match raster CRS
+counties <- st_transform(counties, crs = crs(lc_raster))
+#extract
+lc_extract <- terra::extract(lc_raster, vect(counties), df = TRUE, cells = TRUE) %>%
+  dplyr::distinct(ID, cell, .keep_all = TRUE)
+#visual (large data)
+colnames(lc_extract)
+head(lc_extract,20)
+# Rename land cover column
+colnames(lc_extract)[2] <- "landcover_code"
+
+# Count pixels per county and class
+lc_summary <- lc_extract %>%
+  group_by(ID, landcover_code) %>%
+  summarise(pixel_count = n(), .groups = "drop") %>%
+  mutate(area_km2 = pixel_count * 0.0009)  # 30m x 30m
+
+# Pivot to wide format
+lc_wide <- lc_summary %>%
+  tidyr::pivot_wider(
+    id_cols = ID,
+    names_from = landcover_code,
+    values_from = area_km2,
+    names_prefix = "LC_",
+    values_fill = 0
+  )
+
+# Add county names
+lc_wide$County <- counties$NAME[lc_wide$ID]
+lc_wide <- lc_wide %>% dplyr::select(County, everything(), -ID)
+class(lc_wide)
+
+# Calculate total area 
+lc_wide <- lc_wide %>% 
+  rowwise() %>%
+  mutate(Total_Area = sum(c_across(matches("^LC_\\d+$")), na.rm = TRUE)) %>% #without considering the NA class, without it the area of county is very close the actual area
+  ungroup()
+#calculate percent
+lc_percent <- lc_wide %>%
+  mutate(across(
+    matches("^LC_\\d+$"),
+    ~ .x / Total_Area * 100,
+    .names = "{.col}_pct"
+  )) %>%
+  dplyr::select(County, ends_with("_pct"))
+
+```
+
+#adding class name and aggregating from meta data
+```{r}
+# Read the text file (it's tab-separated)
+lc_classes <- read_tsv("C:/Users/rakib/Desktop/Thesis/DATA/land cover/gaplf2011lc_v30_FL/GAP_LANDFIRE_National_Terrestrial_Ecosystems_2011_Attributes.txt")
+# Create lookup: code (as string to match column names) -> class name
+lc_lookup <- lc_classes %>%
+  select(Value, NVC_CLASS) %>%
+  mutate(
+    LC_col = paste0("LC_", Value, "_pct"),# match column names in your data
+    NVC_CLASS_CLEAN = NVC_CLASS %>%
+      str_replace_all("&", "and") %>%
+      str_replace_all("[,\\- ]+", "_") %>%
+      str_to_lower()
+  )
+#Reshape lc wide Data from Wide to Long
+lc_long <- lc_percent %>%
+  pivot_longer(
+    cols = starts_with("LC_"),
+    names_to = "LC_col",
+    values_to = "percent"
+  )
+#Join with Class Names from Metadata
+lc_joined <- lc_long %>%
+  left_join(lc_lookup, by = "LC_col")
+#Aggregate by NVC_CLASS_CLEAN per County
+lc_grouped <- lc_joined %>%
+  group_by(County, NVC_CLASS_CLEAN) %>%
+  summarise(percent = sum(percent, na.rm = TRUE), .groups = "drop")
+#removing class 0, as there is no NVC_CLASS_CLEAN for lc_0
+lc_grouped=na.omit(lc_grouped)
+#final reshape from long to wide
+lc_final <- lc_grouped %>%
+  pivot_wider(names_from = NVC_CLASS_CLEAN, values_from = percent, values_fill = 0)
+#unique counties & records
+unique(lc_final$County)
+length(lc_final$County)
+```
+
+#saving
+```{r}
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/land cover")
+write.csv(lc_final,'land_cover.csv', row.names = F)
+```
+

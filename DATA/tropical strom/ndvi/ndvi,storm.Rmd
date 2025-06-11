@@ -1,0 +1,81 @@
+---
+title: "NDVI, Storm"
+author: "Rakib"
+date: "2025-05-13"
+output: html_document
+---
+#library
+```{r}
+library(dplyr)
+library(readxl)
+```
+
+# NDVI
+```{r}
+#loading ndvi data
+elsa <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/ndvi/elsa.xlsx")
+eta <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/ndvi/eta.csv")
+fred <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/ndvi/fred.xlsx")
+mindy <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/ndvi/mindy.xlsx")
+#deleting the na value
+elsa <- na.omit(elsa)
+eta <- na.omit(eta)
+fred <- na.omit(fred)
+mindy <- na.omit(mindy)
+# Compute mean of mean NDVI and mean of the minimum NDVI for each county
+elsa_county_summary <- elsa %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean of mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+
+eta_county_summary <- eta %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean of mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+
+fred_county_summary <- fred %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean of mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+
+mindy_county_summary <- mindy %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean of mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+# Merge computed values back into the original dataset
+elsa <- elsa %>%
+  left_join(elsa_county_summary, by = "County")
+
+eta <- eta %>%
+  left_join(eta_county_summary, by = "County")
+
+fred <- fred %>%
+  left_join(fred_county_summary, by = "County")
+
+mindy <- mindy %>%
+  left_join(mindy_county_summary, by = "County")
+#making date col as date
+elsa$Date <- as.Date(elsa$Date)
+eta$Date <- as.Date(eta$Date)
+fred$Date <- as.Date(fred$Date)
+mindy$Date <- as.Date(mindy$Date)
+
+#combining
+ndvi <- bind_rows(elsa, eta, fred, mindy)
+#rename colname
+ndvi <- ndvi%>%
+  rename(county=County, date=Date)
+summary(ndvi)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/ndvi/processed")
+write.csv(ndvi,'ndvi_storm.csv', row.names = F)
+```
+

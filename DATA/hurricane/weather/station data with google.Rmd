@@ -1,0 +1,31 @@
+---
+title: "Google api, geocode"
+author: "Rakib"
+date: "2025-05-14"
+output: html_document
+---
+
+#library
+```{r}
+library(readxl)
+library(dplyr)
+library(stringr)
+library(ggmap)
+```
+
+#station
+```{r}
+#registering api
+register_google(key = "AIzaSyDD3nNMrtxM9Q1TCYMUCBqXpNQD-xSWEoI", write = TRUE)
+
+#loading station
+stations <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/weather/station_metadata.xlsx")
+colnames(stations)
+stations$address <- mapply(function(lat, lon) {
+  tryCatch({
+    revgeocode(c(lon, lat), output = "address", source = "google")
+  }, error = function(e) NA)
+}, stations$Latitude, stations$Longitude)
+
+```
+

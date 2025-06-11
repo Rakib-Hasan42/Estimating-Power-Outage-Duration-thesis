@@ -1,0 +1,851 @@
+---
+title: "RF with all Variables"
+author: "Rakib"
+date: "2025-05-16"
+output: html_document
+---
+
+#library
+```{r}
+library(dplyr)
+library(caret)
+library(scales)
+```
+
+#data
+```{r}
+
+data <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/combined final data set/final_data.csv")
+
+data <- data%>%
+  select(-c(date, fips_code))
+```
+
+
+#data split and selected variables
+```{r}
+#selected variables
+selected_vars <- setdiff(names(data), c("total_outage", "county", 'event_name'))
+set.seed(1)
+# Split data into 80% training and 20% testing
+train_index <- createDataPartition(data$total_outage, p = 0.8, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+```
+
+# Random Forest
+```{r}
+
+#Tune mtry with Cross-Validation
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+set.seed(1001)
+tuned_rf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_rf)
+best_mtry <- tuned_rf$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(tuned_rf)
+#variable imp
+varImp(tuned_rf, scale = FALSE)
+plot(varImp(tuned_rf, scale = FALSE))
+
+
+#predict on test data
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Idalia
+```{r}
+test_event <- c("idalia")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(100)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Ian
+```{r}
+test_event <- c("ian")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(101)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Nicole
+```{r}
+test_event <- c("nicole")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(102)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Sally
+```{r}
+test_event <- c("sally")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(103)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Eta
+```{r}
+test_event <- c("eta")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(104)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Elsa
+```{r}
+test_event <- c("elsa")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(105)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Mindy
+```{r}
+test_event <- c("mindy")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(106)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Fred
+```{r}
+test_event <- c("fred")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+  
+
+test_data <- data %>%
+  filter(event_name %in% test_event)
+  
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(6, 8, 10, 12, 14)
+)
+
+set.seed(107)
+
+rf_model <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "rf",
+  tuneGrid = tune_grid,
+  trControl = ctrl,
+  ntree = 500,
+  importance = TRUE,
+  metric = "RMSE"
+)
+# View
+print(rf_model)
+best_mtry <- rf_model$bestTune$mtry
+cat("Best mtry:", best_mtry, "\n")
+plot(rf_model)
+#variable imp
+varImp(rf_model, scale = FALSE)
+plot(varImp(rf_model, scale = FALSE))
+
+# Make predictions on the test set
+preds <- predict(tuned_rf, newdata = test_data[, selected_vars])
+
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 2),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 2)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+   geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```

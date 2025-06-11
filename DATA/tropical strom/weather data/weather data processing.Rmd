@@ -1,0 +1,172 @@
+---
+title: "weather data of tropical storm"
+author: "Rakib"
+date: "2025-03-21"
+output: html_document
+---
+
+#library
+```{r}
+library(dplyr)
+library(readxl)
+```
+
+#station loccation
+```{r}
+#loading stations county data
+stations_county <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/weather/stations_county.csv")
+
+```
+
+### weather data processing
+#eta
+```{r}
+weather <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/eta.xlsx")
+
+#adding county col
+weather <- weather %>%
+  left_join(stations_county %>% select(ID, county), by = c("station" = "ID"))
+summary(weather)
+#aggregate
+weather_aggregate <- weather %>%
+  group_by(day, county) %>%
+  summarise(
+    max_temp_f = ifelse(all(is.na(max_temp_f)), NA, max(max_temp_f, na.rm = TRUE)),  # Take max value, ignore NA
+    min_temp_f = ifelse(all(is.na(min_temp_f)), NA, min(min_temp_f, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_wind_speed_kts = ifelse(all(is.na(avg_wind_speed_kts)), NA, mean(avg_wind_speed_kts, na.rm = TRUE)),  # Take avg value, ignore NA
+    min_rh = ifelse(all(is.na(min_rh)), NA, min(min_rh, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_rh = ifelse(all(is.na(avg_rh)), NA, mean(avg_rh, na.rm = TRUE)),  # Take avg value, ignore NA
+    max_rh = ifelse(all(is.na(max_rh)), NA, max(max_rh, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_speed_kts = ifelse(all(is.na(max_wind_speed_kts)), NA, max(max_wind_speed_kts, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_gust_kts = ifelse(all(is.na(max_wind_gust_kts)), NA, max(max_wind_gust_kts, na.rm = TRUE))  # Take max value, ignore NA
+  )
+summary(weather_aggregate)
+#removing NA
+weather_aggregate <- na.omit(weather_aggregate)
+#unique counties & records
+unique(weather_aggregate$county)
+length(weather_aggregate$day)
+summary(weather_aggregate)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed")
+write.csv(weather_aggregate,'eta.csv', row.names = F)
+
+```
+
+#elsa
+```{r}
+weather <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/elsa.xlsx")
+
+#adding county col
+weather <- weather %>%
+  left_join(stations_county %>% select(ID, county), by = c("station" = "ID"))
+summary(weather)
+#aggregate
+weather_aggregate <- weather %>%
+  group_by(day, county) %>%
+  summarise(
+    max_temp_f = ifelse(all(is.na(max_temp_f)), NA, max(max_temp_f, na.rm = TRUE)),  # Take max value, ignore NA
+    min_temp_f = ifelse(all(is.na(min_temp_f)), NA, min(min_temp_f, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_wind_speed_kts = ifelse(all(is.na(avg_wind_speed_kts)), NA, mean(avg_wind_speed_kts, na.rm = TRUE)),  # Take avg value, ignore NA
+    min_rh = ifelse(all(is.na(min_rh)), NA, min(min_rh, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_rh = ifelse(all(is.na(avg_rh)), NA, mean(avg_rh, na.rm = TRUE)),  # Take avg value, ignore NA
+    max_rh = ifelse(all(is.na(max_rh)), NA, max(max_rh, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_speed_kts = ifelse(all(is.na(max_wind_speed_kts)), NA, max(max_wind_speed_kts, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_gust_kts = ifelse(all(is.na(max_wind_gust_kts)), NA, max(max_wind_gust_kts, na.rm = TRUE))  # Take max value, ignore NA
+  )
+summary(weather_aggregate)
+#removing NA
+weather_aggregate <- na.omit(weather_aggregate)
+#unique counties & records
+unique(weather_aggregate$county)
+length(weather_aggregate$day)
+summary(weather_aggregate)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed")
+write.csv(weather_aggregate,'elsa.csv', row.names = F)
+```
+
+#fred
+```{r}
+weather <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/fred.xlsx")
+
+#adding county col
+weather <- weather %>%
+  left_join(stations_county %>% select(ID, county), by = c("station" = "ID"))
+summary(weather)
+#aggregate
+weather_aggregate <- weather %>%
+  group_by(day, county) %>%
+  summarise(
+    max_temp_f = ifelse(all(is.na(max_temp_f)), NA, max(max_temp_f, na.rm = TRUE)),  # Take max value, ignore NA
+    min_temp_f = ifelse(all(is.na(min_temp_f)), NA, min(min_temp_f, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_wind_speed_kts = ifelse(all(is.na(avg_wind_speed_kts)), NA, mean(avg_wind_speed_kts, na.rm = TRUE)),  # Take avg value, ignore NA
+    min_rh = ifelse(all(is.na(min_rh)), NA, min(min_rh, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_rh = ifelse(all(is.na(avg_rh)), NA, mean(avg_rh, na.rm = TRUE)),  # Take avg value, ignore NA
+    max_rh = ifelse(all(is.na(max_rh)), NA, max(max_rh, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_speed_kts = ifelse(all(is.na(max_wind_speed_kts)), NA, max(max_wind_speed_kts, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_gust_kts = ifelse(all(is.na(max_wind_gust_kts)), NA, max(max_wind_gust_kts, na.rm = TRUE))  # Take max value, ignore NA
+  )
+summary(weather_aggregate)
+#removing NA
+weather_aggregate <- na.omit(weather_aggregate)
+#unique counties & records
+unique(weather_aggregate$county)
+length(weather_aggregate$day)
+summary(weather_aggregate)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed")
+write.csv(weather_aggregate,'fred.csv', row.names = F)
+```
+
+#mindy
+```{r}
+weather <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/mindy.xlsx")
+
+#adding county col
+weather <- weather %>%
+  left_join(stations_county %>% select(ID, county), by = c("station" = "ID"))
+summary(weather)
+#aggregate
+weather_aggregate <- weather %>%
+  group_by(day, county) %>%
+  summarise(
+    max_temp_f = ifelse(all(is.na(max_temp_f)), NA, max(max_temp_f, na.rm = TRUE)),  # Take max value, ignore NA
+    min_temp_f = ifelse(all(is.na(min_temp_f)), NA, min(min_temp_f, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_wind_speed_kts = ifelse(all(is.na(avg_wind_speed_kts)), NA, mean(avg_wind_speed_kts, na.rm = TRUE)),  # Take avg value, ignore NA
+    min_rh = ifelse(all(is.na(min_rh)), NA, min(min_rh, na.rm = TRUE)),  # Take min value, ignore NA
+    avg_rh = ifelse(all(is.na(avg_rh)), NA, mean(avg_rh, na.rm = TRUE)),  # Take avg value, ignore NA
+    max_rh = ifelse(all(is.na(max_rh)), NA, max(max_rh, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_speed_kts = ifelse(all(is.na(max_wind_speed_kts)), NA, max(max_wind_speed_kts, na.rm = TRUE)),  # Take max value, ignore NA
+    max_wind_gust_kts = ifelse(all(is.na(max_wind_gust_kts)), NA, max(max_wind_gust_kts, na.rm = TRUE))  # Take max value, ignore NA
+  )
+summary(weather_aggregate)
+#removing NA
+weather_aggregate <- na.omit(weather_aggregate)
+#unique counties & records
+unique(weather_aggregate$county)
+length(weather_aggregate$day)
+summary(weather_aggregate)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed")
+write.csv(weather_aggregate,'mindy.csv', row.names = F)
+```
+
+# combining
+```{r}
+#loading weather data
+elsa <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed/elsa.csv")
+eta <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed/eta.csv")
+fred <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed/fred.csv")
+mindy <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed/mindy.csv")
+#combining
+weather_data <- bind_rows(elsa, eta, fred, mindy)
+summary(weather_data)
+#unique counties & records
+unique(weather_data$county)
+length(weather_data$day)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/weather data/processed")
+write.csv(weather_data,'weather_storm.csv', row.names = F)
+```
+

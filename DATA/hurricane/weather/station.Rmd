@@ -1,0 +1,56 @@
+---
+title: "station"
+author: "Rakib"
+date: "2025-05-14"
+output: html_document
+---
+
+# Library
+```{r}
+library(readxl)
+library(tidygeocoder)
+library(dplyr)
+library(stringr)
+```
+
+# Station Metadata processing
+```{r}
+stations <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/weather/station_metadata.xlsx")
+colnames(stations)
+#finding Address
+stations_county <- stations %>%
+  reverse_geocode(lat = Latitude, long = Longitude, method = "osm") # OpenStreetMap API
+#extracting county names
+county_names <- str_extract(stations_county$address, "\\b([A-Za-z ]+ County)\\b(?=, Florida)")
+#unique county
+unique(county_names)
+#Adding county name col in the data
+stations_county$county <- county_names
+######missing counties
+#loading population data file to check counties
+population <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/population/fl_population_2020.csv")
+#checking missing county
+extracted_station <- unique(stations_county$county)
+extracted_population <- population$NAME
+#removing word ', Florida' from population data file
+extracted_population <- str_remove(extracted_population, ", Florida")
+
+#checking missing county
+setdiff(extracted_station, extracted_population)
+setdiff(extracted_population, extracted_station)
+#replacing "Dade County" to "Miami-Dade County", "Saint Lucie County" to "St. Lucie County" and "Saint Johns County" to "St. Johns County"
+stations_county <- stations_county %>%
+  mutate(county = str_replace_all(county, 
+                                  c("Dade County" = "Miami-Dade County",
+                                    "Saint Johns County"= "St. Johns County",
+                                    "Saint Lucie County" = "St. Lucie County")))
+#checking again
+extracted_station <- unique(stations_county$county)
+setdiff(extracted_station, extracted_population)
+missing_counties <- setdiff(extracted_population, extracted_station)
+missing_counties
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/weather")
+write.csv(stations_county,'stations_county.csv', row.names = F)
+
+```

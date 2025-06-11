@@ -1,0 +1,326 @@
+---
+title: "3 days avg lag for tropical storm"
+author: "Rakib"
+date: "2025-03-22"
+output: html_document
+---
+#library
+```{r}
+library(dplyr)
+library(zoo)
+```
+
+# Eta, 2020/11/09
+```{r}
+outage <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/outage season data/2020_s.csv")
+str(outage)
+#adding total outage by customer col (in hour)
+outage$total_outage_by_customers <- ifelse(is.na(outage$customers_out),NA, outage$customers_out*0.25)
+#aggregating
+outage <- outage %>%
+  group_by(fips_code, county, date) %>%
+  summarise(
+    total_outage = ifelse(all(is.na(total_outage_by_customers)), NA, sum(total_outage_by_customers, na.rm = TRUE)),
+    .groups = "drop"
+  )
+#extracting dates around the event
+event_date <- as.Date('2020-11-09')
+str(outage)
+outage$date <- as.Date(outage$date)
+
+outage <- outage %>%
+  filter(date>=event_date-6 & date<=event_date+14)
+
+###fixing 0 outage as there is no entry during 0 outage
+all_counties <- unique(outage$county)
+all_date <- as.Date(seq((event_date-6),(event_date+14),by='day'))
+expected_rows <- expand.grid(date = all_date, county = all_counties)
+#NA values
+na <- outage %>%
+  filter(is.na(total_outage))
+
+#finding missing
+merged <- expected_rows %>%
+  left_join(outage, by = c("date", "county"))
+missing <- merged %>%
+  filter(is.na(total_outage))
+#putting 0 total outage after removing na
+outage_0 <- anti_join(missing, na, by=c('date', 'county'))
+outage_0 <- outage_0 %>%
+  mutate(total_outage=0)
+
+#adding fips code
+fips_unique <- outage %>%
+  select(county, fips_code) %>%
+  distinct(county, .keep_all = TRUE)  # Keeps only the first occurrence
+outage_0 <- outage_0 %>%
+  left_join(fips_unique, by = "county") %>%   # Merge
+  mutate(fips_code = coalesce(fips_code.x, fips_code.y)) %>%  # Replace missing values
+  select(-fips_code.x, -fips_code.y)  # Remove extra columns
+#adding o outage
+outage <- bind_rows(outage, outage_0)
+#removing NA
+outage <- anti_join(outage, na, by=c('date', 'county'))
+
+#lag
+outage <- outage %>%
+    group_by(county) %>%               # Group data by county
+  arrange(date, .by_group = TRUE) %>% # Ensure data is ordered by date within each county
+  mutate(
+     prev_1 = lag(total_outage, 1),
+    prev_2 = lag(total_outage, 2),
+    prev_3 = lag(total_outage, 3),
+    prev_3day_avg_outage = rowMeans(cbind(prev_1, prev_2, prev_3), na.rm = TRUE)
+  ) %>%
+  select(-prev_1, -prev_2, -prev_3) %>%
+  ungroup()
+#checking NA, should be 67
+colSums(is.na(outage))
+str(outage)
+
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg")
+write.csv(outage,'eta.csv', row.names = F)
+```
+
+#elsa 2021/07/07
+```{r}
+outage <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/outage season data/2021_s.csv")
+str(outage)
+summary(outage)
+
+#adding total outage by customer col (in hour)
+outage$total_outage_by_customers <- ifelse(is.na(outage$customers_out),NA, outage$customers_out*0.25)
+#aggregating
+outage <- outage %>%
+  group_by(fips_code, county, date) %>%
+  summarise(
+    total_outage = ifelse(all(is.na(total_outage_by_customers)), NA, sum(total_outage_by_customers, na.rm = TRUE)),
+    .groups = "drop"
+  )
+#extracting dates around the event
+event_date <- as.Date('2021-07-07')
+str(outage)
+outage$date <- as.Date(outage$date)
+
+outage <- outage %>%
+  filter(date>=event_date-6 & date<=event_date+14)
+
+###fixing 0 outage as there is no entry during 0 outage
+all_counties <- unique(outage$county)
+all_date <- as.Date(seq((event_date-6),(event_date+14),by='day'))
+expected_rows <- expand.grid(date = all_date, county = all_counties)
+#NA values
+na <- outage %>%
+  filter(is.na(total_outage))
+
+#finding missing
+merged <- expected_rows %>%
+  left_join(outage, by = c("date", "county"))
+missing <- merged %>%
+  filter(is.na(total_outage))
+#putting 0 total outage after removing na
+outage_0 <- anti_join(missing, na, by=c('date', 'county'))
+outage_0 <- outage_0 %>%
+  mutate(total_outage=0)
+
+#adding fips code
+fips_unique <- outage %>%
+  select(county, fips_code) %>%
+  distinct(county, .keep_all = TRUE)  # Keeps only the first occurrence
+outage_0 <- outage_0 %>%
+  left_join(fips_unique, by = "county") %>%   # Merge
+  mutate(fips_code = coalesce(fips_code.x, fips_code.y)) %>%  # Replace missing values
+  select(-fips_code.x, -fips_code.y)  # Remove extra columns
+#adding o outage
+outage <- bind_rows(outage, outage_0)
+#removing NA
+outage <- anti_join(outage, na, by=c('date', 'county'))
+
+#lag
+outage <- outage %>%
+    group_by(county) %>%               # Group data by county
+  arrange(date, .by_group = TRUE) %>% # Ensure data is ordered by date within each county
+  mutate(
+     prev_1 = lag(total_outage, 1),
+    prev_2 = lag(total_outage, 2),
+    prev_3 = lag(total_outage, 3),
+    prev_3day_avg_outage = rowMeans(cbind(prev_1, prev_2, prev_3), na.rm = TRUE)
+  ) %>%
+  select(-prev_1, -prev_2, -prev_3) %>%
+  ungroup()
+#checking NA, should be 67
+colSums(is.na(outage))
+str(outage)
+
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg")
+write.csv(outage,'elsa.csv', row.names = F)
+
+```
+
+#Fred, 2021/08/16
+```{r}
+outage <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/outage season data/2021_s.csv")
+str(outage)
+summary(outage)
+
+#adding total outage by customer col (in hour)
+outage$total_outage_by_customers <- ifelse(is.na(outage$customers_out),NA, outage$customers_out*0.25)
+#aggregating
+outage <- outage %>%
+  group_by(fips_code, county, date) %>%
+  summarise(
+    total_outage = ifelse(all(is.na(total_outage_by_customers)), NA, sum(total_outage_by_customers, na.rm = TRUE)),
+    .groups = "drop"
+  )
+#extracting dates around the event
+event_date <- as.Date('2021-08-16')
+str(outage)
+outage$date <- as.Date(outage$date)
+
+outage <- outage %>%
+  filter(date>=event_date-6 & date<=event_date+14)
+
+###fixing 0 outage as there is no entry during 0 outage
+all_counties <- unique(outage$county)
+all_date <- as.Date(seq((event_date-6),(event_date+14),by='day'))
+expected_rows <- expand.grid(date = all_date, county = all_counties)
+#NA values
+na <- outage %>%
+  filter(is.na(total_outage))
+
+#finding missing
+merged <- expected_rows %>%
+  left_join(outage, by = c("date", "county"))
+missing <- merged %>%
+  filter(is.na(total_outage))
+#putting 0 total outage after removing na
+outage_0 <- anti_join(missing, na, by=c('date', 'county'))
+outage_0 <- outage_0 %>%
+  mutate(total_outage=0)
+
+#adding fips code
+fips_unique <- outage %>%
+  select(county, fips_code) %>%
+  distinct(county, .keep_all = TRUE)  # Keeps only the first occurrence
+outage_0 <- outage_0 %>%
+  left_join(fips_unique, by = "county") %>%   # Merge
+  mutate(fips_code = coalesce(fips_code.x, fips_code.y)) %>%  # Replace missing values
+  select(-fips_code.x, -fips_code.y)  # Remove extra columns
+#adding o outage
+outage <- bind_rows(outage, outage_0)
+#removing NA
+outage <- anti_join(outage, na, by=c('date', 'county'))
+
+#lag
+outage <- outage %>%
+    group_by(county) %>%               # Group data by county
+  arrange(date, .by_group = TRUE) %>% # Ensure data is ordered by date within each county
+  mutate(
+     prev_1 = lag(total_outage, 1),
+    prev_2 = lag(total_outage, 2),
+    prev_3 = lag(total_outage, 3),
+    prev_3day_avg_outage = rowMeans(cbind(prev_1, prev_2, prev_3), na.rm = TRUE)
+  ) %>%
+  select(-prev_1, -prev_2, -prev_3) %>%
+  ungroup()
+#checking NA, should be 67
+colSums(is.na(outage))
+str(outage)
+
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg")
+write.csv(outage,'fred.csv', row.names = F)
+```
+
+# Mindy, 2021/09/09
+```{r}
+outage <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/outage season data/2021_s.csv")
+str(outage)
+summary(outage)
+
+#adding total outage by customer col (in hour)
+outage$total_outage_by_customers <- ifelse(is.na(outage$customers_out),NA, outage$customers_out*0.25)
+#aggregating
+outage <- outage %>%
+  group_by(fips_code, county, date) %>%
+  summarise(
+    total_outage = ifelse(all(is.na(total_outage_by_customers)), NA, sum(total_outage_by_customers, na.rm = TRUE)),
+    .groups = "drop"
+  )
+#extracting dates around the event
+event_date <- as.Date('2021-09-09')
+str(outage)
+outage$date <- as.Date(outage$date)
+
+outage <- outage %>%
+  filter(date>=event_date-6 & date<=event_date+14)
+
+###fixing 0 outage as there is no entry during 0 outage
+all_counties <- unique(outage$county)
+all_date <- as.Date(seq((event_date-6),(event_date+14),by='day'))
+expected_rows <- expand.grid(date = all_date, county = all_counties)
+#NA values
+na <- outage %>%
+  filter(is.na(total_outage))
+
+#finding missing
+merged <- expected_rows %>%
+  left_join(outage, by = c("date", "county"))
+missing <- merged %>%
+  filter(is.na(total_outage))
+#putting 0 total outage after removing na
+outage_0 <- anti_join(missing, na, by=c('date', 'county'))
+outage_0 <- outage_0 %>%
+  mutate(total_outage=0)
+
+#adding fips code
+fips_unique <- outage %>%
+  select(county, fips_code) %>%
+  distinct(county, .keep_all = TRUE)  # Keeps only the first occurrence
+outage_0 <- outage_0 %>%
+  left_join(fips_unique, by = "county") %>%   # Merge
+  mutate(fips_code = coalesce(fips_code.x, fips_code.y)) %>%  # Replace missing values
+  select(-fips_code.x, -fips_code.y)  # Remove extra columns
+#adding o outage
+outage <- bind_rows(outage, outage_0)
+#removing NA
+outage <- anti_join(outage, na, by=c('date', 'county'))
+
+#lag
+outage <- outage %>%
+    group_by(county) %>%               # Group data by county
+  arrange(date, .by_group = TRUE) %>% # Ensure data is ordered by date within each county
+  mutate(
+      prev_1 = lag(total_outage, 1),
+    prev_2 = lag(total_outage, 2),
+    prev_3 = lag(total_outage, 3),
+    prev_3day_avg_outage = rowMeans(cbind(prev_1, prev_2, prev_3), na.rm = TRUE)
+  ) %>%
+  select(-prev_1, -prev_2, -prev_3) %>%
+  ungroup()
+#checking NA, should be 67
+colSums(is.na(outage))
+str(outage)
+
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg")
+write.csv(outage,'mindy.csv', row.names = F)
+```
+
+# Combining
+```{r}
+#loading lag data
+elsa <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg/elsa.csv")
+eta <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg/eta.csv")
+fred <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg/fred.csv")
+mindy <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg/mindy.csv")
+#combining
+lag <- bind_rows(elsa, eta, fred, mindy)
+summary(lag)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/tropical strom/previous 3 days avg")
+write.csv(lag,'storm_lag2.csv', row.names = F)
+```
+

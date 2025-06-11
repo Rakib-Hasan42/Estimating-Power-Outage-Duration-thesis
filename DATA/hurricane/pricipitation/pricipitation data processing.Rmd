@@ -1,0 +1,240 @@
+---
+title: "precipitation, hurricane"
+author: "Rakib"
+date: "2025-03-19"
+output: html_document
+---
+#library
+```{r}
+library(tidygeocoder)
+library(dplyr)
+library(stringr)
+```
+
+# idalia
+```{r}
+preci <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/idalia.csv")
+#getting station address
+preci <- preci %>%
+  reverse_geocode(lat = LATITUDE, long = LONGITUDE, method = "osm") # OpenStreetMap API
+#getting county name from address
+county_names <- str_extract(preci$address, "\\b([A-Za-z ]+ County)\\b(?=, Florida)")
+#Adding county name col in the data
+preci$county <- county_names
+#check unique county
+length(unique(preci$county))
+######missing counties
+#loading population data file to check counties
+population <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/population/fl_population_2020.csv")
+#checking missing county
+extracted_preci <- unique(preci$county)
+extracted_population <- population$NAME
+#removing word ', Florida' from population data file
+extracted_population <- str_remove(extracted_population, ", Florida")
+#checking missing county
+setdiff(extracted_preci, extracted_population)
+setdiff(extracted_population, extracted_preci)
+#replacing "Dade County" to "Miami-Dade County", "Saint Lucie County" to "St. Lucie County" and "Saint Johns County" to "St. Johns County"
+preci <- preci %>%
+  mutate(county = str_replace_all(county, 
+                                  c("Dade County" = "Miami-Dade County",
+                                    "Saint Johns County"= "St. Johns County",
+                                    "Saint Lucie County" = "St. Lucie County")))
+#missing checking again
+extracted_preci <- unique(preci$county)
+setdiff(extracted_population, extracted_preci)
+
+#extracting precipitation data
+preci <- preci[,c("STATION", "NAME", "county", "DATE", "PRCP")]
+#aggregate
+aggregated_preci <- preci %>%
+  group_by(DATE, county) %>%
+  summarise(
+    max_prcp = ifelse(all(is.na(PRCP)), NA, max(PRCP, na.rm = TRUE)),  # Take max value, ignore NA
+    min_prcp = ifelse(all(is.na(PRCP)), NA, min(PRCP, na.rm = TRUE)),  # Take min value, ignore NA
+    mean_prcp = ifelse(all(is.na(PRCP)), NA, mean(PRCP, na.rm = TRUE)),  # Take mean value, ignore NA
+  )
+#removing NA
+aggregated_preci <- na.omit(aggregated_preci)
+#unique counties & records
+unique(aggregated_preci$county)
+length(aggregated_preci$DATE)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed")
+write.csv(aggregated_preci,'idalia.csv', row.names = F)
+```
+
+# ian
+```{r}
+preci <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/ian.csv")
+#getting station address
+preci <- preci %>%
+  reverse_geocode(lat = LATITUDE, long = LONGITUDE, method = "osm") # OpenStreetMap API
+#getting county name from address
+county_names <- str_extract(preci$address, "\\b([A-Za-z ]+ County)\\b(?=, Florida)")
+#Adding county name col in the data
+preci$county <- county_names
+#check unique county
+length(unique(preci$county))
+######missing counties
+#loading population data file to check counties
+population <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/population/fl_population_2020.csv")
+#checking missing county
+extracted_preci <- unique(preci$county)
+extracted_population <- population$NAME
+#removing word ', Florida' from population data file
+extracted_population <- str_remove(extracted_population, ", Florida")
+#checking missing county
+setdiff(extracted_preci, extracted_population)
+setdiff(extracted_population, extracted_preci)
+#replacing "Dade County" to "Miami-Dade County", "Saint Lucie County" to "St. Lucie County" and "Saint Johns County" to "St. Johns County"
+preci <- preci %>%
+  mutate(county = str_replace_all(county, 
+                                  c("Dade County" = "Miami-Dade County",
+                                    "Saint Johns County"= "St. Johns County",
+                                    "Saint Lucie County" = "St. Lucie County")))
+#missing checking again
+extracted_preci <- unique(preci$county)
+setdiff(extracted_population, extracted_preci)
+
+#extracting precipitation data
+preci <- preci[,c("STATION", "NAME", "county", "DATE", "PRCP")]
+#aggregate
+aggregated_preci <- preci %>%
+  group_by(DATE, county) %>%
+  summarise(
+    max_prcp = ifelse(all(is.na(PRCP)), NA, max(PRCP, na.rm = TRUE)),  # Take max value, ignore NA
+    min_prcp = ifelse(all(is.na(PRCP)), NA, min(PRCP, na.rm = TRUE)),  # Take min value, ignore NA
+    mean_prcp = ifelse(all(is.na(PRCP)), NA, mean(PRCP, na.rm = TRUE)),  # Take mean value, ignore NA
+  )
+#removing NA
+aggregated_preci <- na.omit(aggregated_preci)
+#unique counties & records
+unique(aggregated_preci$county)
+length(aggregated_preci$DATE)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed")
+write.csv(aggregated_preci,'ian.csv', row.names = F)
+```
+
+# nicole
+```{r}
+preci <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/nicole.csv")
+#getting station address
+preci <- preci %>%
+  reverse_geocode(lat = LATITUDE, long = LONGITUDE, method = "osm") # OpenStreetMap API
+#getting county name from address
+county_names <- str_extract(preci$address, "\\b([A-Za-z ]+ County)\\b(?=, Florida)")
+#Adding county name col in the data
+preci$county <- county_names
+#check unique county
+length(unique(preci$county))
+######missing counties
+#loading population data file to check counties
+population <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/population/fl_population_2020.csv")
+#checking missing county
+extracted_preci <- unique(preci$county)
+extracted_population <- population$NAME
+#removing word ', Florida' from population data file
+extracted_population <- str_remove(extracted_population, ", Florida")
+#checking missing county
+setdiff(extracted_preci, extracted_population)
+setdiff(extracted_population, extracted_preci)
+#replacing "Dade County" to "Miami-Dade County", "Saint Lucie County" to "St. Lucie County" and "Saint Johns County" to "St. Johns County"
+preci <- preci %>%
+  mutate(county = str_replace_all(county, 
+                                  c("Dade County" = "Miami-Dade County",
+                                    "Saint Johns County"= "St. Johns County",
+                                    "Saint Lucie County" = "St. Lucie County")))
+#missing checking again
+extracted_preci <- unique(preci$county)
+setdiff(extracted_population, extracted_preci)
+
+#extracting precipitation data
+preci <- preci[,c("STATION", "NAME", "county", "DATE", "PRCP")]
+#aggregate
+aggregated_preci <- preci %>%
+  group_by(DATE, county) %>%
+  summarise(
+    max_prcp = ifelse(all(is.na(PRCP)), NA, max(PRCP, na.rm = TRUE)),  # Take max value, ignore NA
+    min_prcp = ifelse(all(is.na(PRCP)), NA, min(PRCP, na.rm = TRUE)),  # Take min value, ignore NA
+    mean_prcp = ifelse(all(is.na(PRCP)), NA, mean(PRCP, na.rm = TRUE)),  # Take mean value, ignore NA
+  )
+#removing NA
+aggregated_preci <- na.omit(aggregated_preci)
+#unique counties & records
+unique(aggregated_preci$county)
+length(aggregated_preci$DATE)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed")
+write.csv(aggregated_preci,'nicole.csv', row.names = F)
+```
+# sally
+```{r}
+preci <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/sally.csv")
+#getting station address
+preci <- preci %>%
+  reverse_geocode(lat = LATITUDE, long = LONGITUDE, method = "osm") # OpenStreetMap API
+#getting county name from address
+county_names <- str_extract(preci$address, "\\b([A-Za-z ]+ County)\\b(?=, Florida)")
+#Adding county name col in the data
+preci$county <- county_names
+#check unique county
+length(unique(preci$county))
+######missing counties
+#loading population data file to check counties
+population <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/population/fl_population_2020.csv")
+#checking missing county
+extracted_preci <- unique(preci$county)
+extracted_population <- population$NAME
+#removing word ', Florida' from population data file
+extracted_population <- str_remove(extracted_population, ", Florida")
+#checking missing county
+setdiff(extracted_preci, extracted_population)
+setdiff(extracted_population, extracted_preci)
+#replacing "Dade County" to "Miami-Dade County", "Saint Lucie County" to "St. Lucie County" and "Saint Johns County" to "St. Johns County"
+preci <- preci %>%
+  mutate(county = str_replace_all(county, 
+                                  c("Dade County" = "Miami-Dade County",
+                                    "Saint Johns County"= "St. Johns County",
+                                    "Saint Lucie County" = "St. Lucie County")))
+#missing checking again
+extracted_preci <- unique(preci$county)
+setdiff(extracted_population, extracted_preci)
+
+#extracting precipitation data
+preci <- preci[,c("STATION", "NAME", "county", "DATE", "PRCP")]
+#aggregate
+aggregated_preci <- preci %>%
+  group_by(DATE, county) %>%
+  summarise(
+    max_prcp = ifelse(all(is.na(PRCP)), NA, max(PRCP, na.rm = TRUE)),  # Take max value, ignore NA
+    min_prcp = ifelse(all(is.na(PRCP)), NA, min(PRCP, na.rm = TRUE)),  # Take min value, ignore NA
+    mean_prcp = ifelse(all(is.na(PRCP)), NA, mean(PRCP, na.rm = TRUE)),  # Take mean value, ignore NA
+  )
+#removing NA
+aggregated_preci <- na.omit(aggregated_preci)
+#unique counties & records
+unique(aggregated_preci$county)
+length(aggregated_preci$DATE)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed")
+write.csv(aggregated_preci,'sally.csv', row.names = F)
+```
+
+# Combined
+```{r}
+idalia <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed/idalia.csv")
+ian <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed/ian.csv")
+nicole <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed/nicole.csv")
+sally <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed/sally.csv")
+#combining
+hurricane <- bind_rows(idalia, ian, nicole, sally)
+summary(hurricane)
+#unique counties & records
+unique(hurricane$county)
+length(hurricane$DATE)
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/pricipitation/processed")
+write.csv(hurricane, 'hurricane_preci.csv', row.names = F)
+```

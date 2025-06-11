@@ -1,0 +1,110 @@
+---
+title: "Outage Season Data Processing"
+author: "Rakib"
+date: "2025-05-08"
+output: html_document
+---
+
+# Library
+```{r}
+library(dplyr)
+library(lubridate)
+```
+
+# 2020
+```{r}
+#loading data
+data <- read.csv('/home/stud/u273911/Desktop/Data/eaglei_outages/eaglei_outages_2020.csv')
+#checking
+colnames(data)
+unique(data$state)
+#filter florida
+florida <- data[data$state=='Florida',]
+#adding date col
+florida$date <- as_date(florida$run_start_time)
+#removing jan to april
+florida <- florida[!format(florida$date, "%m") %in% c("01", "02", "03", "04"), ]
+summary(florida)
+##saving, as handeling NA's in more small data(event specific) will be more easier
+#setting work directory
+setwd('/home/stud/u273911/Desktop/Data/outage season data')
+#saving
+write.csv(florida,'2020_s.csv', row.names = F)
+```
+
+# 2021
+```{r}
+#loading data
+data <- read.csv('/home/stud/u273911/Desktop/Data/eaglei_outages/eaglei_outages_2021.csv')
+#checking
+colnames(data)
+unique(data$state)
+#filter florida
+florida <- data[data$state=='Florida',]
+#adding date col
+florida$date <- as_date(florida$run_start_time)
+#removing jan to april
+florida <- florida[!format(florida$date, "%m") %in% c("01", "02", "03", "04"), ]
+summary(florida)
+##saving, as handeling NA's in more small data(event specific) will be more easier
+#setting work directory
+setwd('/home/stud/u273911/Desktop/Data/outage season data')
+#saving
+write.csv(florida,'2021_s.csv', row.names = F)
+```
+
+# 2022
+```{r}
+#loading data
+data <- read.csv('/home/stud/u273911/Desktop/Data/eaglei_outages/eaglei_outages_2022.csv')
+#checking
+colnames(data)
+unique(data$state)
+#filter florida
+florida <- data[data$state=='Florida',]
+#adding date col
+florida$date <- as_date(florida$run_start_time)
+#removing jan to april
+florida <- florida[!format(florida$date, "%m") %in% c("01", "02", "03", "04"), ]
+summary(florida)
+#adding total outage by customers col (in hour)
+florida$total_outage_by_customers <- florida$customers_out*0.25
+#aggregating outage for a day
+aggregated <- florida %>%
+  group_by(fips_code, county, date) %>%
+  summarise(total_outage = sum(total_outage_by_customers, na.rm = TRUE), .groups = "drop")
+summary(aggregated)
+#setting work directory
+setwd('/home/stud/u273911/Desktop/Data/outage season data')
+#saving
+write.csv(aggregated,'2022_s.csv', row.names = F)
+
+```
+
+# 2023
+```{r}
+#loading data
+data <- read.csv('/home/stud/u273911/Desktop/Data/eaglei_outages/eaglei_outages_2023.csv')
+#checking
+colnames(data)
+unique(data$state)
+#filter florida
+florida <- data[data$state=='Florida',]
+#adding date col
+florida$date <- as_date(florida$run_start_time)
+#removing jan to april
+florida <- florida[!format(florida$date, "%m") %in% c("01", "02", "03", "04"), ]
+summary(florida)
+#adding total outage by customers col (in hour)
+florida$total_outage_by_customers <- florida$sum*0.25
+#aggregating outage for a day
+aggregated <- florida %>%
+  group_by(fips_code, county, date) %>%
+  summarise(total_outage = sum(total_outage_by_customers, na.rm = TRUE), .groups = "drop")
+summary(aggregated)
+#setting work directory
+setwd('/home/stud/u273911/Desktop/Data/outage season data')
+#saving
+write.csv(aggregated,'2023_s.csv', row.names = F)
+
+```

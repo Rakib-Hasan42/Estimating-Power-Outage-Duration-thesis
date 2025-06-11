@@ -1,0 +1,55 @@
+---
+title: "population data"
+author: "Rakib"
+date: "2025-02-24"
+output: html_document
+---
+#loading library
+```{r}
+library(tidycensus)
+library(sf)
+```
+
+#getting polulation data
+```{r}
+# Set your Census API key (get one here: https://api.census.gov/data/key_signup.html)
+census_api_key("3bde53e3aca222731d226933446634b985705738", install = TRUE, overwrite = TRUE)
+
+# Fetch 2020 Decennial Census population data for Florida counties
+fl_population_2020 <- get_decennial(
+  geography = "county",
+  variables = c(population = "P1_001N"), # Total population variable
+  year = 2020,
+  state = "FL" # Florida state abbreviation
+)
+fl_population_2020
+```
+
+#getting area from SHP file
+```{r}
+#loading file
+shape_file <- st_read("C:/Users/rakib/Desktop/Thesis/DATA/shape file/tl_2024_us_county/tl_2024_us_county.shp")
+#extracting florida
+colnames(shape_file)
+florida_shp <- shape_file[shape_file$STATEFP==12,]
+plot(florida_shp$geometry)
+florida_shp$area_mi2 <- st_area(florida_shp)/ 2.59e6 
+florida_shp$area_mi2 <- as.numeric(gsub(" \\[m\\^2\\]", "", florida_shp$area_mi2))
+
+```
+
+#population density per square mile
+```{r}
+# Extract only GEOID and area_mi2 from shapefile
+area_data <- florida_shp[, c("GEOID", "area_mi2")]
+# Merge area into population dataframe
+fl_population_2020 <- merge(fl_population_2020, area_data, by = "GEOID")
+# Calculate population density
+fl_population_2020$density_mi2 <- fl_population_2020$value / fl_population_2020$area_mi2
+fl_population_2020$geometry <- NULL
+
+#saving 
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/population")
+write.csv(fl_population_2020, 'fl_population_2020.csv', row.names = F)
+```
+

@@ -1,0 +1,93 @@
+---
+title: "NDVI, hurricane"
+author: "Rakib"
+date: "2025-05-13"
+output: html_document
+---
+
+#library
+```{r}
+library(readxl)
+library(dplyr)
+```
+
+# ndvi data
+```{r}
+#loading ndvi data
+idalia <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/ndvi/ndvi_idalia.xlsx")
+idalia$Date <- as.Date(idalia$Date)
+idalia <- idalia[idalia$Date>= '2023-08-27' & idalia$Date<='2023-09-13',]
+idalia <- na.omit(idalia)
+# Compute mean NDVI and mean of the minimum NDVI for each county
+idalia_county_summary <- idalia %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+# Merge computed values back into the original dataset
+idalia <- idalia %>%
+  left_join(idalia_county_summary, by = "County")
+#data
+ian <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/ndvi/ndvi_ian.xlsx")
+
+ian$Date <- as.Date(ian$Date)
+ian <- ian[ian$Date>= "2022-09-25" & ian$Date<="2022-10-12",]
+ian <- na.omit(ian)
+# Compute mean NDVI and mean of the minimum NDVI for each county
+ian_county_summary <- ian %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+# Merge computed values back into the original dataset
+ian <- ian %>%
+  left_join(ian_county_summary, by = "County")
+
+#data
+nicole <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/ndvi/ndvi_nicole.xlsx")
+
+nicole$Date <- as.Date(nicole$Date)
+nicole <- nicole[nicole$Date>= "2022-11-07" & nicole$Date<="2022-11-24",]
+nicole <-na.omit(nicole)
+# Compute mean NDVI and mean of the minimum NDVI for each county
+nicole_county_summary <- nicole %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+# Merge computed values back into the original dataset
+nicole <- nicole %>%
+  left_join(nicole_county_summary, by = "County")
+#data
+sally <- read_excel("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/ndvi/ndvi_sally.xlsx")
+
+sally$Date <- as.Date(sally$Date)
+sally <- sally[sally$Date>= "2020-09-13" & sally$Date<="2020-09-30",]
+sally <- na.omit(sally)
+# Compute mean NDVI and mean of the minimum NDVI for each county
+sally_county_summary <- sally %>%
+  group_by(County) %>%
+  summarise(
+    mean_mean_ndvi = mean(Mean_NDVI, na.rm = TRUE),        # Mean NDVI over 18 days
+    mean_min_ndvi = mean(Min_NDVI, na.rm = TRUE)  # Mean of minimum NDVI
+  )
+# Merge computed values back into the original dataset
+sally <- sally %>%
+  left_join(sally_county_summary, by = "County")
+
+#combining
+ndvi <- bind_rows(idalia, ian, nicole, sally)
+ndvi <- ndvi%>%
+  rename(county=County, date=Date)
+summary(ndvi)
+
+#saving
+setwd("C:/Users/rakib/Desktop/Thesis/DATA/hurricane/ndvi/processed")
+write.csv(ndvi,'ndvi_hurricane.csv', row.names = F)
+
+```
+
+

@@ -1,0 +1,917 @@
+---
+title: "QRF"
+author: "Rakib"
+date: "2025-04-29"
+output: html_document
+---
+
+#library
+```{r}
+library(dplyr)
+library(caret)
+library(scales)
+```
+
+#data
+```{r}
+data <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/combined final data set/final_data.csv")
+
+data <- data%>%
+  select(-c(date, fips_code))
+```
+
+#data split and selected variables
+```{r}
+#selected variables
+selected_vars <- setdiff(names(data), c("total_outage", "county", 'event_name', 'open_water', 'shrub_and_herb_vegetation', 'forest_and_woodland', 'agricultural_and_developed_vegetation', 'min_rh'))
+set.seed(1)
+# Split data into 80% training and 20% testing
+train_index <- createDataPartition(data$total_outage, p = 0.8, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+```
+
+#QRF
+```{r}
+#Tune mtry with Cross-Validation
+ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(1003)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Idalia
+```{r}
+test_event <- c("idalia")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(400)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Ian
+```{r}
+test_event <- c("ian")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(401)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Nicole
+```{r}
+test_event <- c("nicole")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(402)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Sally
+```{r}
+test_event <- c("sally")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(403)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Eta
+```{r}
+test_event <- c("eta")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(404)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Elsa
+```{r}
+test_event <- c("elsa")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(405)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Mindy
+```{r}
+test_event <- c("mindy")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(406)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```
+
+# Fred
+```{r}
+test_event <- c("fred")  # for testing
+
+train_data <- data %>%
+  filter(!event_name %in% test_event)
+
+test_data <- data %>%
+  filter(event_name %in% test_event) 
+
+ctrl <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(4, 6, 8, 10, 12)
+)
+set.seed(407)
+tuned_qrf <- train(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  method = "qrf",
+  tuneGrid = tune_grid,
+  trControl = ctrl
+)
+print(tuned_qrf)
+plot(tuned_qrf)
+#variable imp
+varImp(tuned_qrf, scale = FALSE)
+plot(varImp(tuned_qrf, scale = FALSE))
+#predict on test data
+preds <- predict(tuned_qrf$finalModel, newdata = test_data[, selected_vars], what = c(0.10, 0.50, 0.90))
+actuals <- test_data$total_outage
+# Organize predictions
+qrf_df <- data.frame(
+  Actual = actuals,
+  Q10 = preds[, 1],
+  Q50 = preds[, 2],
+  Q90 = preds[, 3]
+)
+qrf_df$Q10[qrf_df$Q5 < 0] <- 0
+qrf_df$Q50[qrf_df$Q50 < 0] <- 0
+qrf_df$Q90[qrf_df$Q95 < 0] <- 0
+# Coverage
+coverage <- mean(qrf_df$Actual >= qrf_df$Q10 & qrf_df$Actual <= qrf_df$Q90)
+cat("Coverage (Q10–Q90):", round(coverage * 100, 2), "%\n")
+#evaluation
+results <- postResample(pred = qrf_df$Q50, obs = actuals)
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - qrf_df$Q50)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+
+#Actual vs prediction plot
+ideal_line_df <- data.frame(x = c(0, max(qrf_df$Actual)), y = c(0, max(qrf_df$Actual)))
+
+ggplot(qrf_df, aes(x = Actual, y = Q50)) +
+  geom_point(aes(color = "Actual vs Predicted Points"), alpha = 0.5) +
+  geom_line(aes(color = "Median Line (Q50)"), size = 1) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_ribbon(aes(ymin = Q10, ymax = Q90, fill = "Prediction Interval"), alpha = 0.3) +
+
+  # Ideal line as diagonal (in legend)
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+
+  scale_color_manual(
+    name = "Line Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Median Line (Q50)" = "green",
+      "Regression Line" = "yellow",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Interval Legend",
+    values = c("Prediction Interval" = "gray")
+  ) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Quantile Random Forest: Power Outage Prediction Intervals",
+    x = "Actual Outage",
+    y = "Predicted Median (Q50)"
+  ) +
+  theme_minimal()
+```

@@ -1,0 +1,1064 @@
+---
+title: "Ensemble"
+author: "Rakib"
+date: "2025-04-30"
+output: html_document
+---
+#library
+```{r}
+library(dplyr)
+library(caret)
+library(caretEnsemble)
+library(scales)
+```
+
+#data
+```{r}
+data <- read.csv("C:/Users/rakib/Desktop/Thesis/DATA/combined final data set/final_data.csv")
+
+data <- data%>%
+  select(-c(date, fips_code))
+```
+
+#data split and selected variables
+```{r}
+#selected variables
+selected_vars <- setdiff(names(data), c("total_outage", "county", 'event_name'))
+set.seed(1)
+# Split data into 80% training and 20% testing
+train_index <- createDataPartition(data$total_outage, p = 0.8, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+```
+
+# Ensemble
+```{r}
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(1004)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(1005)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#predict on test data
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Idalia
+```{r}
+# Define event to hold out 
+test_event <- "idalia"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(300)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(301)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Ian
+```{r}
+# Define event to hold out 
+test_event <- "ian"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(302)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(303)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Nicole
+```{r}
+# Define event to hold out 
+test_event <- "nicole"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(304)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(305)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Sally
+```{r}
+# Define event to hold out 
+test_event <- "sally"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(306)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(307)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Eta
+```{r}
+# Define event to hold out 
+test_event <- "eta"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(308)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(309)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Elsa
+```{r}
+# Define event to hold out 
+test_event <- "elsa"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(310)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(311)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Mindy
+```{r}
+# Define event to hold out 
+test_event <- "mindy"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(312)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(313)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+# Fred
+```{r}
+# Define event to hold out 
+test_event <- "fred"
+
+train_data <- data %>% filter(event_name != test_event) 
+test_data  <- data %>% filter(event_name == test_event) 
+# Define resampling strategy
+control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final",
+  allowParallel = TRUE
+)
+
+# Set tuning grids for each base model
+tune_list <- list(
+  rf = caretModelSpec(
+    method = "rf",
+    tuneGrid = expand.grid(mtry = c(6, 8, 10, 12, 14)),
+    trControl = control
+  ),
+  xgbTree = caretModelSpec(
+    method = "xgbTree",
+    tuneGrid = expand.grid(
+  nrounds = c(100, 300, 500),
+  eta = c(0.01, 0.1, 0.3),
+  max_depth = c(4, 6, 8),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.7, 1),
+  min_child_weight = c(1, 5),
+  subsample = c(0.7, 1)
+    ),
+    trControl = control
+  )
+)
+set.seed(314)
+# Train base learners
+models <- caretList(
+  x = train_data[, selected_vars],
+  y = train_data$total_outage,
+  tuneList = tune_list,
+  metric = "RMSE"
+)
+#best tune
+models$rf$bestTune       # Best mtry used by random forest
+models$xgbTree$bestTune  # Best parameters used by xgboost
+#variable imp
+plot(varImp(models$rf))
+plot(varImp(models$xgbTree))
+set.seed(315)
+#stack model
+stacked_model <- caretStack(
+  models,
+  method = "glm", 
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 5)
+)
+print(stacked_model)
+plot(stacked_model)
+summary(stacked_model$ens_model)
+#prediction
+preds <- predict(stacked_model, newdata = test_data[, selected_vars])
+preds <- as.numeric(preds$pred)
+preds[preds < 0] <- 0
+actuals <- test_data$total_outage
+# Evaluate
+results <- postResample(pred = preds, obs = actuals)
+
+# Format results as a data frame
+eval_table <- data.frame(
+  Metric = c("RMSE", "R-squared", "MAE"),
+  Value = c(
+    round(results["RMSE"], 4),
+    round(results["Rsquared"], 4),
+    round(results["MAE"], 4)
+  )
+)
+
+# Print table
+print(eval_table)
+#Traditional/Definition based R2
+sst <- sum((actuals - mean(actuals))^2)
+sse <- sum((actuals - preds)^2)
+r2_traditional <- 1 - (sse / sst)
+cat("Traditional R-squared:", round(r2_traditional, 4))
+#actual vs prediction plot
+plot_df <- data.frame(
+  actuals = actuals,
+  preds = preds
+)
+ideal_line_df <- data.frame(x = c(0, max(plot_df$actuals)), y = c(0, max(plot_df$actuals)))
+ggplot(plot_df, aes(x = actuals, y = preds)) +
+  geom_point(aes(color = "Actual vs Predicted Points")) +
+  geom_smooth(aes(color = "Regression Line"), method = "lm", se = FALSE) +
+  geom_line(data = ideal_line_df, aes(x = x, y = y, color = "Ideal Line"), linetype = "dashed", size = 1) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "Actual vs Predicted Points" = "blue",
+      "Regression Line" = "green",
+      "Ideal Line" = "red"
+    )
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Actual vs Predicted with Regression Line",
+    x = "Actual Outage",
+    y = "Predicted Outage",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+
