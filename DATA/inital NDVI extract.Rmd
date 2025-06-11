@@ -1,4 +1,11 @@
-#Load necessary libraries
+---
+title: "inital NDVI extract"
+author: "Rakib"
+date: "2025-06-11"
+output: html_document
+---
+#library
+```{r}
 library(ncdf4)     # For handling NetCDF files
 library(terra)     # For raster operations
 library(sf)        # For spatial operations
@@ -7,7 +14,9 @@ library(tigris)    # For Florida county boundaries
 library(ggplot2)   # For visualization
 library(readr)     # For saving CSV files
 library(openxlsx)  # For saving Excel files
-
+```
+#extract
+```{r}
 #Set NetCDF file path (Replace with your file path)
 nc_file <- "C:/Users/raoab/Downloads/VIIRS-Land_v001_NPP13C1_S-NPP_20221123_c20240127020027.nc"
 #step 1: Extract Time Information from NetCDF
@@ -115,3 +124,6 @@ ggplot() +
        x = "Longitude",
        y = "Latitude") +
   theme_minimal()
+
+```
+
